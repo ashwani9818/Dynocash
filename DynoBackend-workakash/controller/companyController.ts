@@ -3,10 +3,11 @@ import {
   errorResponseHelper,
   getErrorMessage,
   successResponseHelper,
+  sendEmail,
 } from "../helper";
 import jwt from "jsonwebtoken";
 import { IUserType } from "../utils/types";
-import { companyModel } from "../models";
+import { companyModel, userModel } from "../models";
 import { companyLogger } from "../utils/loggers";
 import sequelize from "../utils/dbInstance";
 import { QueryTypes } from "sequelize";
@@ -25,6 +26,34 @@ const addCompany = async (req: express.Request, res: express.Response) => {
       user_id: userData.user_id,
       photo,
     });
+
+    // Send email notification to user about company creation
+    try {
+      // Fetch user details for email
+      const userDetails = await userModel.findOne({
+        where: { user_id: userData.user_id },
+      });
+
+      if (userDetails && userDetails.dataValues.email) {
+        const companyName = data.company_name || "your company";
+        console.log("Attempting to send company creation email to:", userDetails.dataValues.email);
+        await sendEmail(
+          userDetails.dataValues.email,
+          userDetails.dataValues.name || "User",
+          "Company Created Successfully!",
+          `Hello ${userDetails.dataValues.name || "User"}!\n\nYour company "${companyName}" has been successfully created on DynoPay.\n\nYou can now:\n1. Add payment APIs\n2. Create payment links\n3. Start accepting payments\n\nIf you have any questions, feel free to reach out to our support team.\n\nBest regards,\nThe DynoPay Team`
+        );
+        console.log("Company creation email sent successfully to:", userDetails.dataValues.email);
+      }
+    } catch (emailError) {
+      // Log error but don't fail company creation if email fails
+      console.log("Failed to send company creation email:", emailError);
+      companyLogger.error("Failed to send company creation email", {
+        user_id: userData.user_id,
+        company_id: resData.dataValues?.company_id,
+        error: emailError,
+      });
+    }
 
     successResponseHelper(res, 200, "Company added successfully!", resData);
   } catch (e) {

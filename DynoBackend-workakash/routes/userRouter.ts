@@ -8,6 +8,8 @@ userRouter.post("/login", userMiddleware, userController.login);
 userRouter.get("/checkEmail", userController.checkEmail);
 userRouter.post("/generateOTP", userController.generateOTP);
 userRouter.post("/confirmOTP", userController.confirmOTP);
+userRouter.post("/verifyPasswordResetOTP", userController.verifyPasswordResetOTP);
+userRouter.post("/resetPassword", userController.resetPassword);
 userRouter.post("/connectSocial", userController.connectSocial);
 
 userRouter.put(

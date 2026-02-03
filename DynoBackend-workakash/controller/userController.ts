@@ -298,6 +298,137 @@ const confirmOTP = async (req: express.Request, res: express.Response) => {
   }
 };
 
+// Verify OTP for password reset (does NOT log user in)
+const verifyPasswordResetOTP = async (req: express.Request, res: express.Response) => {
+  try {
+    const { email, otp, mobile } = req.body;
+    
+    if (!otp) {
+      return errorResponseHelper(res, 400, "Please add OTP!");
+    }
+
+    if (mobile) {
+      // Mobile OTP verification via Telnyx
+      const {
+        data: { data },
+      } = await axios.post(
+        `https://api.telnyx.com/v2/verifications/by_phone_number/+${mobile}/actions/verify`,
+        {
+          code: otp,
+          verify_profile_id: process.env.PROFILE_ID,
+        },
+        {
+          headers: {
+            Authorization: "Bearer " + process.env.ACCESS_TOKEN,
+          },
+        }
+      );
+      
+      if (data.response_code === "accepted") {
+        // OTP verified - return success WITHOUT logging in
+        successResponseHelper(res, 200, "OTP verified successfully!", { verified: true });
+      } else {
+        errorResponseHelper(res, 500, "OTP did not match!");
+      }
+    } else {
+      // Email OTP verification
+      const item = await localStorage.getData("/" + email);
+      
+      if (!item) {
+        return errorResponseHelper(res, 400, "OTP not found. Please request a new OTP!");
+      }
+
+      const createdTime = new Date(item.createdAt);
+      const currentTime = new Date();
+      const diff = getMinutesBetweenDates(currentTime, createdTime);
+      
+      if (diff >= 10) {
+        return errorResponseHelper(res, 400, "OTP expired!");
+      }
+
+      if (otp !== item.otp) {
+        return errorResponseHelper(res, 400, "OTP did not match!");
+      }
+
+      // OTP verified - return success WITHOUT logging in
+      successResponseHelper(res, 200, "OTP verified successfully!", { verified: true });
+    }
+  } catch (e) {
+    const message = getErrorMessage(e);
+    userLogger.error(message, new Error(e));
+    errorResponseHelper(res, 500, message ?? "Please request for a new code!");
+  }
+};
+
+// Reset password after OTP verification
+const resetPassword = async (req: express.Request, res: express.Response) => {
+  try {
+    const { email, otp, newPassword, mobile } = req.body;
+
+    if (!newPassword) {
+      return errorResponseHelper(res, 400, "Please provide a new password!");
+    }
+
+    // Verify OTP again (for security)
+    let otpVerified = false;
+
+    if (mobile) {
+      const {
+        data: { data },
+      } = await axios.post(
+        `https://api.telnyx.com/v2/verifications/by_phone_number/+${mobile}/actions/verify`,
+        {
+          code: otp,
+          verify_profile_id: process.env.PROFILE_ID,
+        },
+        {
+          headers: {
+            Authorization: "Bearer " + process.env.ACCESS_TOKEN,
+          },
+        }
+      );
+      otpVerified = data.response_code === "accepted";
+    } else {
+      const item = await localStorage.getData("/" + email);
+      if (item) {
+        const createdTime = new Date(item.createdAt);
+        const currentTime = new Date();
+        const diff = getMinutesBetweenDates(currentTime, createdTime);
+        otpVerified = diff < 10 && otp === item.otp;
+      }
+    }
+
+    if (!otpVerified) {
+      return errorResponseHelper(res, 400, "Invalid or expired OTP!");
+    }
+
+    // Find user
+    const userData = await userModel.findOne({
+      where: { email },
+    });
+
+    if (!userData) {
+      return errorResponseHelper(res, 404, "User not found!");
+    }
+
+    // Update password
+    const hashedPassword = sha256(newPassword).toString();
+    await userModel.update(
+      { password: hashedPassword },
+      { where: { user_id: userData.dataValues.user_id } }
+    );
+
+    // Note: OTP is not deleted - it will expire naturally after 10 minutes
+    // This matches the pattern used in confirmOTP function
+
+    successResponseHelper(res, 200, "Password reset successfully!");
+  } catch (e) {
+    const message = getErrorMessage(e);
+    userLogger.error(message, new Error(e));
+    errorResponseHelper(res, 500, message);
+  }
+};
+
 const updateUser = async (req: express.Request, res: express.Response) => {
   try {
     const file = req.file as Express.Multer.File;
@@ -432,6 +563,8 @@ export default {
   checkEmail,
   generateOTP,
   confirmOTP,
+  verifyPasswordResetOTP,
+  resetPassword,
   connectSocial,
   updateUser,
   changePassword,
