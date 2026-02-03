@@ -70,29 +70,47 @@ const getWallet = async (req: express.Request, res: express.Response) => {
       currencyList.push(walletData[i].dataValues.wallet_type);
     }
 
-    const currencyData = await currencyConvert({
-      currency: currencyList,
-      sourceCurrency: "USD",
-      fixedDecimal: false,
-      amount: 1,
-    });
+    // Try to get currency conversion rates, but don't fail if it errors
+    let currencyData = [];
+    try {
+      currencyData = await currencyConvert({
+        currency: currencyList,
+        sourceCurrency: "USD",
+        fixedDecimal: false,
+        amount: 1,
+      });
+    } catch (currencyError: any) {
+      // Log the error but continue with default rates
+      walletLogger.warn(
+        `Currency conversion failed, using default rates: ${getErrorMessage(currencyError)}`,
+        { user_id: userData.user_id, email: userData.email }
+      );
+      // Create default currency data with transfer rate of 1
+      currencyData = currencyList.map((curr: string) => ({
+        currency: curr.toUpperCase(),
+        amount: 1,
+        transferRate: 1,
+      }));
+    }
 
     const returnData = [];
 
-    for (let i = 0; i < currencyData.length; i++) {
-      const currentIndex = walletData.findIndex(
-        (x) => x.dataValues.wallet_type === currencyData[i].currency
-      );
-      console.log(currentIndex);
-      const currentWallet = walletData[currentIndex].dataValues;
-      const finalAmount = Number(
-        currentWallet.amount / currencyData[i].transferRate
-      );
+    for (let i = 0; i < walletData.length; i++) {
+      const wallet = walletData[i].dataValues;
+      // Find matching currency data or use default
+      const currencyInfo = currencyData.find(
+        (c: any) => c.currency === wallet.wallet_type.toUpperCase()
+      ) || {
+        currency: wallet.wallet_type.toUpperCase(),
+        transferRate: 1,
+      };
+
+      const finalAmount = Number(wallet.amount / currencyInfo.transferRate);
       const amount_in_usd = Number(finalAmount).toFixed(2);
       returnData.push({
-        ...currentWallet,
+        ...wallet,
         amount_in_usd,
-        transfer_rate: currencyData[i].transferRate,
+        transfer_rate: currencyInfo.transferRate,
       });
     }
 
@@ -2526,17 +2544,61 @@ const verifyOtp = async (req: express.Request, res: express.Response) => {
       }
     );
 
-    await userWalletModel.update(
-      {
-        wallet_address
+    // Check if wallet record exists, if not create it, otherwise update it
+    const existingWallet = await userWalletModel.findOne({
+      where: {
+        user_id,
+        wallet_type: currency,
       },
-      {
-        where: {
-          user_id,
-          wallet_type: currency,
+    });
+
+    if (existingWallet) {
+      // Update existing wallet record
+      const updateResult = await userWalletModel.update(
+        {
+          wallet_address
         },
+        {
+          where: {
+            user_id,
+            wallet_type: currency,
+          },
+        }
+      );
+      
+      // Log if update didn't affect any rows (shouldn't happen, but good to check)
+      if (updateResult[0] === 0) {
+        walletLogger.warn(
+          `Wallet update affected 0 rows for user_id: ${user_id}, currency: ${currency}`,
+          { user_id, currency, wallet_address }
+        );
       }
-    );
+    } else {
+      // Create new wallet record if it doesn't exist
+      // Determine currency_type based on currency or use provided currency_type
+      let currencyType: "FIAT" | "CRYPTO" = "FIAT";
+      if (currency_type) {
+        currencyType = currency_type as "FIAT" | "CRYPTO";
+      } else {
+        // Fallback: determine from currency name
+        const cryptoCurrencies = ["BTC", "ETH", "LTC", "DOGE", "BCH", "TRX", "USDT-ERC20", "USDT-TRC20"];
+        currencyType = cryptoCurrencies.includes(currency) ? "CRYPTO" : "FIAT";
+      }
+      
+      await userWalletModel.create({
+        id: crypto.randomUUID(),
+        user_id,
+        wallet_type: currency,
+        wallet_address,
+        currency_type: currencyType,
+        amount: 0,
+      });
+      
+      walletLogger.info(
+        `Created new wallet record for user_id: ${user_id}, currency: ${currency}`,
+        { user_id, currency, wallet_address, currency_type: currencyType }
+      );
+    }
 
 
     successResponseHelper(res, 200, "OTP verified successfully!", {

@@ -825,6 +825,8 @@ import {
   USER_EMAIL_CHECK,
   USER_LOGIN,
   USER_SEND_OTP,
+  USER_VERIFY_PASSWORD_RESET_OTP,
+  USER_RESET_PASSWORD,
   UserAction,
 } from "@/Redux/Actions/UserAction";
 import CustomButton from "@/Components/UI/Buttons";
@@ -892,6 +894,7 @@ export default function Login() {
   const [forgotPasswordOtpCountdown, setForgotPasswordOtpCountdown] =
     useState(0);
   const [forgotPasswordOtpError, setForgotPasswordOtpError] = useState("");
+  const [forgotPasswordOtp, setForgotPasswordOtp] = useState("");
   const [showForgotPasswordForm, setShowForgotPasswordForm] = useState(false);
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
 
@@ -971,8 +974,44 @@ export default function Login() {
     }
   };
 
-  const handleSetNewPassword = () => {
-    console.log("set new password");
+  const handleSetNewPassword = async () => {
+    // Validate passwords
+    if (!newPassword) {
+      setNewPasswordError("passwordRequired");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setNewPasswordError("passwordMinLength");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setNewPasswordConfirmError("passwordAndConfirmPasswordShouldBeSame");
+      return;
+    }
+
+    try {
+      // Reset password
+      dispatch(
+        UserAction(USER_RESET_PASSWORD, {
+          email: forgotPasswordEmail,
+          otp: forgotPasswordOtp,
+          newPassword: newPassword,
+          mobile: null,
+        })
+      );
+    } catch (e: any) {
+      const message =
+        e.response?.data?.message ?? e.message ?? "Failed to reset password";
+      dispatch({
+        type: TOAST_SHOW,
+        payload: {
+          message: message,
+          severity: "error",
+        },
+      });
+    }
   };
 
   // Validation schemas - use translation keys instead of translated strings
@@ -988,26 +1027,26 @@ export default function Login() {
     emailOTP: yup.string().required("otpRequired"),
   });
 
-  // Navigate to home if user is logged in (but not in password recovery mode)
+  // Navigate to home if user is logged in (but not in password recovery mode or showing reset form)
   useEffect(() => {
-    if (userState.name && !isPasswordRecoveryMode) {
+    if (userState.name && !isPasswordRecoveryMode && !showForgotPasswordForm) {
       setShowSuccessAnimation(true);
       setEmailOtpDialogOpen(false); // Close dialog on successful login
       setTimeout(() => {
         router.replace("/dashboard");
       }, 600);
     }
-  }, [userState, router, isPasswordRecoveryMode]);
+  }, [userState, router, isPasswordRecoveryMode, showForgotPasswordForm]);
 
   // Handle successful OTP verification for password recovery
   useEffect(() => {
     // If we're in password recovery mode and OTP was verified successfully
-    // (no error and loading stopped), close dialog and show reset form
+    // Check for success flag and action type (success flag takes precedence over error)
     if (
       isPasswordRecoveryMode &&
       !userState.loading &&
-      previousLoadingState &&
-      !userState.error
+      userState.actionType === USER_VERIFY_PASSWORD_RESET_OTP &&
+      userState.success
     ) {
       // OTP verified successfully for password recovery
       setShowForgotPasswordForm(true);
@@ -1016,10 +1055,29 @@ export default function Login() {
     }
   }, [
     userState.loading,
-    userState.error,
+    userState.actionType,
+    userState.success,
     isPasswordRecoveryMode,
-    previousLoadingState,
   ]);
+
+  // Handle successful password reset
+  useEffect(() => {
+    if (
+      !userState.loading &&
+      userState.actionType === USER_RESET_PASSWORD &&
+      userState.success
+    ) {
+      // Password reset successful - redirect to login
+      setTimeout(() => {
+        setShowForgotPasswordForm(false);
+        setNewPassword("");
+        setNewPasswordConfirm("");
+        setForgotPasswordEmail("");
+        setForgotPasswordOtp("");
+        router.push("/auth/login");
+      }, 2000);
+    }
+  }, [userState.loading, userState.actionType, userState.success, router]);
 
   // Handle loading state changes for animations and ensure loading stops on error
   useEffect(() => {
@@ -1043,14 +1101,23 @@ export default function Login() {
         // Handle API errors - set error message in form if it's an OTP verification error
         if (
           userState.error &&
-          userState.error.actionType === USER_CONFIRM_CODE
+          (userState.error.actionType === USER_CONFIRM_CODE ||
+           userState.error.actionType === USER_VERIFY_PASSWORD_RESET_OTP)
         ) {
-          // If in password recovery mode, set error in forgot password dialog
-          if (isPasswordRecoveryMode) {
+          // If it's a password reset OTP error, always show in forgot password dialog
+          if (userState.error.actionType === USER_VERIFY_PASSWORD_RESET_OTP) {
             setForgotPasswordOtpError(
               userState.error.message || "OTP verification failed"
             );
-          } else if (loginMethod === "email" && emailOtp) {
+          } 
+          // If in password recovery mode and it's a regular confirm code error, show in forgot password dialog
+          else if (isPasswordRecoveryMode && userState.error.actionType === USER_CONFIRM_CODE) {
+            setForgotPasswordOtpError(
+              userState.error.message || "OTP verification failed"
+            );
+          } 
+          // Regular login OTP errors
+          else if (loginMethod === "email" && emailOtp) {
             // Set the error message so it displays in the OTP dialog
             setEmailOtpError(
               userState.error.message || "OTP verification failed"
@@ -1668,11 +1735,15 @@ export default function Login() {
     }
 
     try {
-      // Verify OTP for password recovery
+      // Store OTP for later use in password reset
+      setForgotPasswordOtp(otp.trim());
+      
+      // Verify OTP for password recovery (does NOT log user in)
       dispatch(
-        UserAction(USER_CONFIRM_CODE, {
+        UserAction(USER_VERIFY_PASSWORD_RESET_OTP, {
           email: email,
           otp: otp.trim(),
+          mobile: null,
         })
       );
     } catch (e: any) {

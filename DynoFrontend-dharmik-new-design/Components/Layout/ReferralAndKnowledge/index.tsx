@@ -41,6 +41,12 @@ const ReferralAndKnowledge = ({ isMobile }: { isMobile: boolean }) => {
     }, 2000);
   }
 
+  const knowledgeBaseUrl = process.env.NEXT_PUBLIC_KNOWLEDGE_BASE_URL as string;
+
+  const handleKnowledgeBaseClick = () => {
+    window.open(knowledgeBaseUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <SidebarFooter>
       <ReferralCard>
@@ -82,7 +88,7 @@ const ReferralAndKnowledge = ({ isMobile }: { isMobile: boolean }) => {
         </ReferralCardContent>
       </ReferralCard>
 
-      <KnowledgeBaseBtn>
+      <KnowledgeBaseBtn onClick={handleKnowledgeBaseClick}>
         <Image
           src={FileIcon}
           alt="File Icon"

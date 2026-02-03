@@ -27,4 +27,10 @@ userRouter.put(
   userController.changePassword
 );
 
+userRouter.get(
+  "/refreshToken",
+  authMiddleware,
+  userController.refreshToken
+);
+
 export default userRouter;

@@ -34,33 +34,47 @@ const currencyConvert = async ({
     }
 
     if (source !== currentCurrency) {
-      const {
-        data: { result },
-      } = await axios.get(`https://api.fastforex.io/convert`, {
-        params: {
-          api_key: process.env.FAST_FOREX_KEY,
-          from: source,
-          to: currentCurrency,
-          amount: amount,
-        },
-      });
-      console.log(currentCurrency, result[currentCurrency], result);
-      const transferRate = fixedDecimal
-        ? result.rate.toFixed(2)
-        : result.rate > 1
-        ? result.rate.toFixed(2)
-        : Number(result.rate).toFixed(8);
-      const currentCurrencyAmount = fixedDecimal
-        ? result[currentCurrency].toFixed(2)
-        : result[currentCurrency] > 1
-        ? result[currentCurrency].toFixed(2)
-        : Number(result[currentCurrency]).toFixed(8);
+      try {
+        const {
+          data: { result },
+        } = await axios.get(`https://api.fastforex.io/convert`, {
+          params: {
+            api_key: process.env.FAST_FOREX_KEY,
+            from: source,
+            to: currentCurrency,
+            amount: amount,
+          },
+        });
+        console.log(currentCurrency, result[currentCurrency], result);
+        const transferRate = fixedDecimal
+          ? result.rate.toFixed(2)
+          : result.rate > 1
+          ? result.rate.toFixed(2)
+          : Number(result.rate).toFixed(8);
+        const currentCurrencyAmount = fixedDecimal
+          ? result[currentCurrency].toFixed(2)
+          : result[currentCurrency] > 1
+          ? result[currentCurrency].toFixed(2)
+          : Number(result[currentCurrency]).toFixed(8);
 
-      currencyRateList.push({
-        currency: defaultCurrency.toUpperCase(),
-        amount: Number(currentCurrencyAmount),
-        transferRate: Number(transferRate),
-      });
+        currencyRateList.push({
+          currency: defaultCurrency.toUpperCase(),
+          amount: Number(currentCurrencyAmount),
+          transferRate: Number(transferRate),
+        });
+      } catch (error: any) {
+        // If FastForex API fails (403, rate limit, etc.), use default rate of 1
+        console.error(
+          `FastForex API error for ${currentCurrency}:`,
+          error?.response?.status,
+          error?.response?.data || error?.message
+        );
+        currencyRateList.push({
+          currency: defaultCurrency.toUpperCase(),
+          amount: amount,
+          transferRate: 1, // Default fallback rate
+        });
+      }
     } else {
       currencyRateList.push({
         currency: defaultCurrency.toUpperCase(),

@@ -33,11 +33,17 @@ import Toast from "../../Toast";
 export interface SuccessAPIModelProps {
   open: boolean;
   handleClose: () => void;
+  apiData?: {
+    apiKey?: string;
+    adminToken?: string;
+    [key: string]: any;
+  } | null;
 }
 
 const SuccessAPIModel: React.FC<SuccessAPIModelProps> = ({
   open,
   handleClose,
+  apiData,
 }) => {
   const { t } = useTranslation("apiScreen");
   const isMobile = useIsMobile("sm");
@@ -124,10 +130,10 @@ const SuccessAPIModel: React.FC<SuccessAPIModelProps> = ({
               fullWidth
               label={t("generate.yourKey")}
               placeholder={t("generate.keyNamePlaceholder")}
-              name="key_name"
+              name="apiKey"
               readOnly
               inputHeight="40px"
-              value="dpk_live_x04exyjb946e9lwclqhqvqzrgu3k0v24"
+              value={apiData?.apiKey || ""}
               inputBgColor="#FCFBF8"
               sx={{
                 "& .MuiInputBase-root input": {
@@ -167,7 +173,7 @@ const SuccessAPIModel: React.FC<SuccessAPIModelProps> = ({
                     border: `1px solid ${theme.palette.primary.main}`,
                     backgroundColor: "#fff",
                   }}
-                  onClick={() => handleCopy("dpk_live_x04exyjb946e9lwclqhqvqzrgu3k0v24")}
+                  onClick={() => handleCopy(apiData?.apiKey || "")}
                 >
                   <Image
                     src={CopyIcon.src}
@@ -184,10 +190,10 @@ const SuccessAPIModel: React.FC<SuccessAPIModelProps> = ({
               fullWidth
               label={t("generate.adminToken")}
               placeholder={t("generate.keyNamePlaceholder")}
-              name="key_name"
+              name="adminToken"
               readOnly
               inputHeight="40px"
-              value="dpk_live_x04exyjb946e9lwclqhqvqzrgu3k0v24"
+              value={apiData?.adminToken || ""}
               inputBgColor="#FCFBF8"
               sx={{
                 "& .MuiInputBase-root input": {
@@ -227,7 +233,7 @@ const SuccessAPIModel: React.FC<SuccessAPIModelProps> = ({
                     border: `1px solid ${theme.palette.primary.main}`,
                     backgroundColor: "#fff",
                   }}
-                  onClick={() => handleCopy("dpk_live_x04exyjb946e9lwclqhqvqzrgu3k0v24")}
+                  onClick={() => handleCopy(apiData?.adminToken || "")}
                 >
                   <Image
                     src={CopyIcon.src}

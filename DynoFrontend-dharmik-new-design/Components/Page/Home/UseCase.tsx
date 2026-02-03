@@ -103,7 +103,7 @@ const UseCaseSection = () => {
       image: useCase3,
       title: "Subscription & SaaS Products",
       description: "Automated callbacks and API for recurring payments.",
-      tag: "API keys",
+      tag: "  ",
     },
     {
       image: useCase4,

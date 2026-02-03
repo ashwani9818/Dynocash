@@ -123,10 +123,10 @@ const ApiDocumentationCard = ({ docsUrl }: { docsUrl: string }) => {
           variant="secondary"
           size="medium"
           endIcon={<ArrowOutwardIcon sx={{ fontSize: 14 }} />}
-          // onClick={() => {
-          //   if (!docsUrl) return;
-          //   window.open(docsUrl, "_blank", "noopener,noreferrer");
-          // }}
+          onClick={() => {
+            if (!docsUrl) return;
+            window.open(docsUrl, "_blank", "noopener,noreferrer");
+          }}
           sx={{
             height: 40,
             width: "fit-content",
@@ -406,9 +406,7 @@ const ApiKeysPage = ({
     setDeleteId(0);
   };
 
-  const docsUrl =
-    (process.env.NEXT_PUBLIC_API_DOCS_URL as string) ||
-    "https://docs.dynopay.com";
+  const docsUrl = process.env.NEXT_PUBLIC_API_DOCS_URL as string;
 
   const itemAnimation = {
     '@keyframes fadeSlideIn': {

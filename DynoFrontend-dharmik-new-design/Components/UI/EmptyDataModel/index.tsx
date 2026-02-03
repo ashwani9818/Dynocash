@@ -6,11 +6,14 @@ import wallet from "@/assets/Icons/wallet.svg";
 import apiKey from "@/assets/Icons/api-key.svg";
 import useIsMobile from "@/hooks/useIsMobile";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { AddRounded } from "@mui/icons-material";
 import { useRouter } from "next/router";
 import AddWalletModal from "../AddWalletModal";
 import CreateApiModel from "../ApiKeysModel/CreateApiModel";
+import { useDispatch } from "react-redux";
+import { WalletAction } from "@/Redux/Actions";
+import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
 
 type PageName = "transactions" | "wallet" | "apiKey";
 
@@ -21,9 +24,15 @@ interface EmptyDataModelProps {
 const EmptyDataModel = ({ pageName }: EmptyDataModelProps) => {
     const isMobile = useIsMobile("md");
     const router = useRouter();
+    const dispatch = useDispatch();
     const { t } = useTranslation("common");
 
     const [openCreate, setOpenCreate] = useState(false);
+
+    // Callback to refresh wallet list after adding a wallet
+    const handleWalletAdded = useCallback(() => {
+        dispatch(WalletAction(WALLET_FETCH));
+    }, [dispatch]);
 
     const pageData: Record<
         PageName,
@@ -147,6 +156,7 @@ const EmptyDataModel = ({ pageName }: EmptyDataModelProps) => {
                 <AddWalletModal
                     open
                     onClose={() => setOpenCreate(false)}
+                    onWalletAdded={handleWalletAdded}
                 />
             )}
 

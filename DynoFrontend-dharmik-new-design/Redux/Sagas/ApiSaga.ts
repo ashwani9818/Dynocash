@@ -103,7 +103,7 @@ export function* deleteApi(payload: any): unknown {
       type: TOAST_SHOW,
       payload: {
         message: message,
-        severity: "error",
+        severity: "success",
       },
     });
     yield put({

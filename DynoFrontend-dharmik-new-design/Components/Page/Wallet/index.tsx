@@ -31,6 +31,8 @@ import { WarningIconContainer } from "@/Components/UI/AddWalletModal/styled";
 import useIsMobile from "@/hooks/useIsMobile";
 import { useWalletData } from "@/hooks/useWalletData";
 import EmptyDataModel from "@/Components/UI/EmptyDataModel";
+import { WalletAction } from "@/Redux/Actions";
+import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
 
 interface WalletData {
   icon: any;
@@ -55,6 +57,11 @@ const Wallet = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
 
   const { walletLoading, walletData } = useWalletData();
+
+  // Callback to refresh wallet list after adding a wallet
+  const handleWalletAdded = useCallback(() => {
+    dispatch(WalletAction(WALLET_FETCH));
+  }, [dispatch]);
   // const walletData = useMemo<WalletData[]>(
   //   () => [
   //     {
@@ -393,6 +400,7 @@ const Wallet = () => {
       <AddWalletModal
         open={openEditModal}
         onClose={() => setOpenEditModal(false)}
+        onWalletAdded={handleWalletAdded}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import PopupModal from "../../PopupModal";
 import { useTranslation } from "react-i18next";
 import { Button, Typography } from "@mui/material";
@@ -12,6 +12,7 @@ import WalletIcon from "@/assets/Icons/wallet-icon.svg";
 import * as yup from "yup";
 import InfoIcon from "@/assets/Icons/info-icon.svg";
 import CurrencySelector from "../../CurrencySelector";
+import CompanySelectorForm from "../../CompanySelectorForm";
 import {
   PermissionsContainer,
   IconContainer,
@@ -21,6 +22,12 @@ import {
 } from "./styled";
 import CustomButton from "../../Buttons";
 import SuccessAPIModel from "../SuccessAPIModel";
+import { useDispatch, useSelector } from "react-redux";
+import { ApiAction } from "@/Redux/Actions";
+import { API_INSERT } from "@/Redux/Actions/ApiAction";
+import { CompanyAction } from "@/Redux/Actions";
+import { COMPANY_FETCH } from "@/Redux/Actions/CompanyAction";
+import { rootReducer } from "@/utils/types";
 
 export interface CreateApiModelProps {
   open: boolean;
@@ -29,23 +36,107 @@ export interface CreateApiModelProps {
 
 const CreateApiModel: React.FC<CreateApiModelProps> = ({ open, onClose }) => {
   const { t } = useTranslation("apiScreen");
+  const dispatch = useDispatch();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdApiData, setCreatedApiData] = useState<any>(null);
+  const previousApiListLengthRef = useRef<number>(0);
+  const isSubmittingRef = useRef<boolean>(false);
+  const hasProcessedSuccessRef = useRef<boolean>(false); // Track if we've already processed success
+  
+  const apiState = useSelector((state: rootReducer) => state.apiReducer);
+  const companyState = useSelector((state: rootReducer) => state.companyReducer);
+
+  // Fetch companies when modal opens
+  useEffect(() => {
+    if (open && companyState.companyList.length === 0) {
+      dispatch(CompanyAction(COMPANY_FETCH));
+    }
+  }, [open, companyState.companyList.length, dispatch]);
+
+  // Prevent modal from reopening after successful API creation
+  useEffect(() => {
+    // If we've processed success and modal is open (shouldn't happen, but safeguard)
+    if (hasProcessedSuccessRef.current && open && !showSuccessModal) {
+      // Modal reopened after success - close it immediately
+      onClose();
+    }
+  }, [open, showSuccessModal, onClose]);
+
+  // Reset refs when modal closes
+  useEffect(() => {
+    if (!open) {
+      previousApiListLengthRef.current = apiState.apiList.length;
+      isSubmittingRef.current = false;
+      hasProcessedSuccessRef.current = false; // Reset success flag when modal closes
+      setCreatedApiData(null);
+      // Ensure success modal is also closed when create modal closes
+      if (showSuccessModal) {
+        setShowSuccessModal(false);
+      }
+    }
+  }, [open, apiState.apiList.length, showSuccessModal]);
+
+  // Handle successful API creation
+  useEffect(() => {
+    if (
+      isSubmittingRef.current &&
+      !apiState.loading &&
+      apiState.apiList.length > previousApiListLengthRef.current &&
+      open && // Only process if modal is still open
+      !hasProcessedSuccessRef.current // Prevent processing success multiple times
+    ) {
+      // A new API was added - find it
+      const newApi = apiState.apiList.find(
+        (api: any, index: number) => index >= previousApiListLengthRef.current
+      );
+      if (newApi) {
+        // Mark that we've processed this success to prevent re-processing
+        hasProcessedSuccessRef.current = true;
+        setCreatedApiData(newApi);
+        previousApiListLengthRef.current = apiState.apiList.length;
+        isSubmittingRef.current = false;
+        // Close the create modal first
+        onClose();
+        // Then show success modal after a brief delay to ensure create modal is closed
+        setTimeout(() => {
+          setShowSuccessModal(true);
+        }, 100);
+      }
+    }
+  }, [apiState.apiList, apiState.loading, onClose, open]);
 
   const onSubmit = (values: any) => {
-    console.log("Form submitted with data:", values);
-    // Close the create modal and open the success modal
-    onClose();
-    setShowSuccessModal(true);
+    // Prepare payload matching backend expectations
+    const payload = {
+      company_id: Number(values.company_id),
+      base_currency: values.base_currency,
+      withdrawal_whitelist: values.withdrawal_whitelist || false,
+    };
+
+    // Track that we're submitting
+    previousApiListLengthRef.current = apiState.apiList.length;
+    isSubmittingRef.current = true;
+    hasProcessedSuccessRef.current = false; // Reset success flag when submitting new form
+
+    // Dispatch API_INSERT action
+    dispatch(ApiAction(API_INSERT, payload));
   };
 
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
+    setCreatedApiData(null);
+    // Ensure create modal stays closed after success modal closes
+    // Always call onClose to ensure parent state is updated
+    onClose();
   };
+
+  // Prevent modal from opening if we've already processed success
+  const shouldShowModal = open && !hasProcessedSuccessRef.current;
 
   return (
     <>
       <PopupModal
-        open={open}
+        open={shouldShowModal}
         showHeader={false}
         transparent
         handleClose={onClose}
@@ -86,9 +177,12 @@ const CreateApiModel: React.FC<CreateApiModelProps> = ({ open, onClose }) => {
             </Typography>
           </Box>
           <FormManager
-            initialValues={{ base_currency: "USD" }}
+            initialValues={{ company_id: "", base_currency: "USD" }}
             yupSchema={yup.object().shape({
-              key_name: yup.string().required(t("validation.required")),
+              company_id: yup
+                .number()
+                .required(t("validation.required"))
+                .min(1, t("validation.selectCompany") || "Please select a company"),
               base_currency: yup.string().required(t("validation.required")),
             })}
             onSubmit={onSubmit}
@@ -104,14 +198,27 @@ const CreateApiModel: React.FC<CreateApiModelProps> = ({ open, onClose }) => {
               <Box
                 sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 2 }}
               >
-                <InputField
+                <CompanySelectorForm
                   fullWidth
-                  label={t("generate.keyName") + " *"}
-                  placeholder={t("generate.keyNamePlaceholder")}
-                  name="key_name"
-                  value={values.key_name}
-                  onChange={handleChange}
-                  sx={{ minHeight: "40px" }}
+                  label={t("generate.selectCompany") || "Select Company"}
+                  name="company_id"
+                  value={values.company_id || ""}
+                  onChange={(value) => {
+                    const event = {
+                      target: {
+                        name: "company_id",
+                        value: value,
+                      },
+                    } as unknown as React.ChangeEvent<HTMLInputElement>;
+                    handleChange(event);
+                  }}
+                  required
+                  error={touched.company_id && !!errors.company_id}
+                  helperText={
+                    touched.company_id && errors.company_id
+                      ? String(errors.company_id)
+                      : undefined
+                  }
                 />
 
                 <CurrencySelector
@@ -192,6 +299,7 @@ const CreateApiModel: React.FC<CreateApiModelProps> = ({ open, onClose }) => {
       <SuccessAPIModel
         open={showSuccessModal}
         handleClose={handleSuccessModalClose}
+        apiData={createdApiData}
       />
     </>
   );

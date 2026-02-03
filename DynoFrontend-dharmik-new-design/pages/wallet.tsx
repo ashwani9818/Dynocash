@@ -19,6 +19,9 @@ import { WarningIconContainer } from "@/Components/UI/AddWalletModal/styled";
 import Image from "next/image";
 import InfoIcon from "@/assets/Icons/info-icon.svg";
 import { useWalletData } from "@/hooks/useWalletData";
+import { useDispatch } from "react-redux";
+import { WalletAction } from "@/Redux/Actions";
+import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
 
 const WalletPage = ({
   setPageName,
@@ -28,6 +31,7 @@ const WalletPage = ({
   setPageWarning,
 }: pageProps) => {
   const router = useRouter();
+  const dispatch = useDispatch();
   const namespaces = ["walletScreen", "common"];
   const isMobile = useIsMobile("md");
   const { t } = useTranslation(namespaces);
@@ -40,6 +44,11 @@ const WalletPage = ({
   const [openCreate, setOpenCreate] = useState(false);
 
   const { walletWarning } = useWalletData();
+
+  // Callback to refresh wallet list after adding a wallet
+  const handleWalletAdded = useCallback(() => {
+    dispatch(WalletAction(WALLET_FETCH));
+  }, [dispatch]);
 
   useEffect(() => {
     if (setPageName && setPageDescription) {
@@ -193,6 +202,7 @@ const WalletPage = ({
         <AddWalletModal
           open={openCreate}
           onClose={() => setOpenCreate(false)}
+          onWalletAdded={handleWalletAdded}
         />
       </Box>
     </>

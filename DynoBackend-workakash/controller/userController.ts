@@ -429,6 +429,19 @@ const resetPassword = async (req: express.Request, res: express.Response) => {
   }
 };
 
+const refreshToken = async (req: express.Request, res: express.Response) => {
+  try {
+    const userData = jwt.decode(res.locals.token) as IUserType;
+    // Just get fresh token from database without updating anything
+    const token = await getAccessToken(userData.user_id);
+    successResponseHelper(res, 200, "Token refreshed successfully!", token);
+  } catch (e) {
+    const errorMessage = getErrorMessage(e);
+    userLogger.error(errorMessage, new Error(e));
+    errorResponseHelper(res, 500, errorMessage);
+  }
+};
+
 const updateUser = async (req: express.Request, res: express.Response) => {
   try {
     const file = req.file as Express.Multer.File;
@@ -568,4 +581,5 @@ export default {
   connectSocial,
   updateUser,
   changePassword,
+  refreshToken,
 };

@@ -4,6 +4,7 @@ import {
   errorResponseHelper,
   getErrorMessage,
   successResponseHelper,
+  sendEmail,
 } from "../helper";
 import jwt from "jsonwebtoken";
 import { IUserType } from "../utils/types";
@@ -14,6 +15,7 @@ import {
   customerWalletModel,
   planModel,
   userWalletModel,
+  userModel,
 } from "../models";
 import { apiLogger } from "../utils/loggers";
 import crypto from "crypto";
@@ -110,6 +112,34 @@ const addApi = async (req: express.Request, res: express.Response) => {
           withdrawal_whitelist: withdrawal_whitelist
         });
 
+        // Send email notification to user about API key creation
+        try {
+          const userDetails = await userModel.findOne({
+            where: { user_id: userData.user_id },
+          });
+
+          if (userDetails && userDetails.dataValues.email) {
+            const companyName = company_data.dataValues.company_name || "your company";
+            console.log("Attempting to send API key creation email to:", userDetails.dataValues.email);
+            await sendEmail(
+              userDetails.dataValues.email,
+              userDetails.dataValues.name || "User",
+              "API Key Created Successfully!",
+              `Hello ${userDetails.dataValues.name || "User"}!\n\nYour API key for "${companyName}" (${base_currency}) has been successfully created on DynoPay.\n\nYou can now:\n1. Use this API key to integrate DynoPay into your applications\n2. Make secure API calls to process payments\n3. Manage your payment flows programmatically\n\nImportant: Keep your API key secure and never share it publicly. If you suspect your key has been compromised, delete it immediately and create a new one.\n\nIf you have any questions, feel free to reach out to our support team.\n\nBest regards,\nThe DynoPay Team`
+            );
+            console.log("API key creation email sent successfully to:", userDetails.dataValues.email);
+          }
+        } catch (emailError) {
+          // Log error but don't fail API creation if email fails
+          console.log("Failed to send API key creation email:", emailError);
+          apiLogger.error("Failed to send API key creation email", {
+            user_id: userData.user_id,
+            company_id: company_id,
+            base_currency: base_currency,
+            error: emailError,
+          });
+        }
+
         successResponseHelper(res, 200, "Api generated successfully!", {
           ...resData.dataValues,
           ...company_data.dataValues,
@@ -171,12 +201,63 @@ const deleteApi = async (req: express.Request, res: express.Response) => {
   const userData = jwt.decode(res.locals.token) as IUserType;
   try {
     const api_id = req.params.id;
+    
+    // Get API details before deleting for email notification
+    const apiDetails = await apiModel.findOne({
+      where: {
+        user_id: userData.user_id,
+        api_id,
+      },
+    });
+
     const resData = await apiModel.destroy({
       where: {
         user_id: userData.user_id,
         api_id,
       },
     });
+
+    // Send email notification to user about API key deletion
+    if (resData > 0 && apiDetails) {
+      try {
+        const userDetails = await userModel.findOne({
+          where: { user_id: userData.user_id },
+        });
+
+        if (userDetails && userDetails.dataValues.email) {
+          // Get company name from the API details
+          let companyName = "your company";
+          let baseCurrency = apiDetails.dataValues.base_currency || "N/A";
+          
+          if (apiDetails.dataValues.company_id) {
+            const companyData = await companyModel.findOne({
+              where: { company_id: apiDetails.dataValues.company_id },
+            });
+            if (companyData) {
+              companyName = companyData.dataValues.company_name || companyName;
+            }
+          }
+
+          console.log("Attempting to send API key deletion email to:", userDetails.dataValues.email);
+          await sendEmail(
+            userDetails.dataValues.email,
+            userDetails.dataValues.name || "User",
+            "API Key Deleted Successfully",
+            `Hello ${userDetails.dataValues.name || "User"}!\n\nYour API key for "${companyName}" (${baseCurrency}) has been successfully deleted from DynoPay.\n\nIf you deleted this key by mistake or need to create a new one, you can do so from the API Keys section in your dashboard.\n\nIf you did not authorize this deletion, please contact our support team immediately.\n\nBest regards,\nThe DynoPay Team`
+          );
+          console.log("API key deletion email sent successfully to:", userDetails.dataValues.email);
+        }
+      } catch (emailError) {
+        // Log error but don't fail API deletion if email fails
+        console.log("Failed to send API key deletion email:", emailError);
+        apiLogger.error("Failed to send API key deletion email", {
+          user_id: userData.user_id,
+          api_id: api_id,
+          error: emailError,
+        });
+      }
+    }
+
     successResponseHelper(res, 200, "Api deleted successfully!", resData);
   } catch (e) {
     const message = getErrorMessage(e);
