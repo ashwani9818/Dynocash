@@ -23,6 +23,16 @@ const userWalletModel = sequelize.define(
       onUpdate: "CASCADE",
       onDelete: "CASCADE",
     },
+    company_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "tbl_company",
+        key: "company_id",
+      },
+      onUpdate: "CASCADE",
+      onDelete: "CASCADE",
+    },
     amount: {
       type: DataTypes.FLOAT,
       defaultValue: 0,

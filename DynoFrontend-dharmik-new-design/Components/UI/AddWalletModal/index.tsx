@@ -45,6 +45,7 @@ const AddWalletModal: React.FC<AddWalletModalProps> = ({
 }) => {
   const dispatch = useDispatch();
   const userState = useSelector((state: rootReducer) => state.userReducer);
+  const companyState = useSelector((state: rootReducer) => state.companyReducer);
   const isMobile = useIsMobile("sm");
   const { t } = useTranslation("walletScreen");
   const tWallet = useCallback(
@@ -176,6 +177,7 @@ const AddWalletModal: React.FC<AddWalletModalProps> = ({
         wallet_address: address?.wallet_address,
         currency: address?.currency,
         currency_type: currencyType,
+        company_id: companyState.selectedCompanyId,
       });
 
       if (response.status) {

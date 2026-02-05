@@ -48,6 +48,17 @@ import { getAdminWalletAddress } from "../utils/adminUtils";
 const getWallet = async (req: express.Request, res: express.Response) => {
   const userData = jwt.decode(res.locals.token) as IUserType;
   try {
+    const { company_id } = req.query;
+    
+    const whereClause: any = {
+      user_id: userData.user_id,
+    };
+    
+    // Filter by company_id if provided
+    if (company_id) {
+      whereClause.company_id = company_id;
+    }
+    
     const walletData = await userWalletModel.findAll({
       attributes: {
         exclude: [
@@ -59,9 +70,7 @@ const getWallet = async (req: express.Request, res: express.Response) => {
           "mnemonic",
         ],
       },
-      where: {
-        user_id: userData.user_id,
-      },
+      where: whereClause,
     });
 
     const currencyList = [];
@@ -2498,7 +2507,7 @@ const validateWallet = async (
 const verifyOtp = async (req: express.Request, res: express.Response) => {
   const userData = jwt.decode(res.locals.token) as IUserType;
   try {
-    const { otp, wallet_address, currency, currency_type } = req.body;
+    const { otp, wallet_address, currency, currency_type, company_id } = req.body;
 
     if (!otp) {
       return errorResponseHelper(res, 400, "OTP is required!");
@@ -2544,12 +2553,19 @@ const verifyOtp = async (req: express.Request, res: express.Response) => {
       }
     );
 
-    // Check if wallet record exists, if not create it, otherwise update it
+    // Check if wallet record exists for this company and currency, if not create it, otherwise update it
+    const whereClause: any = {
+      user_id,
+      wallet_type: currency,
+    };
+    
+    // Include company_id in the lookup if provided
+    if (company_id) {
+      whereClause.company_id = company_id;
+    }
+    
     const existingWallet = await userWalletModel.findOne({
-      where: {
-        user_id,
-        wallet_type: currency,
-      },
+      where: whereClause,
     });
 
     if (existingWallet) {
@@ -2559,18 +2575,15 @@ const verifyOtp = async (req: express.Request, res: express.Response) => {
           wallet_address
         },
         {
-          where: {
-            user_id,
-            wallet_type: currency,
-          },
+          where: whereClause,
         }
       );
       
       // Log if update didn't affect any rows (shouldn't happen, but good to check)
       if (updateResult[0] === 0) {
         walletLogger.warn(
-          `Wallet update affected 0 rows for user_id: ${user_id}, currency: ${currency}`,
-          { user_id, currency, wallet_address }
+          `Wallet update affected 0 rows for user_id: ${user_id}, currency: ${currency}, company_id: ${company_id}`,
+          { user_id, currency, wallet_address, company_id }
         );
       }
     } else {
@@ -2588,6 +2601,7 @@ const verifyOtp = async (req: express.Request, res: express.Response) => {
       await userWalletModel.create({
         id: crypto.randomUUID(),
         user_id,
+        company_id: company_id || null,
         wallet_type: currency,
         wallet_address,
         currency_type: currencyType,

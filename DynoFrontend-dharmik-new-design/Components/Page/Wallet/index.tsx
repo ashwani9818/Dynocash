@@ -33,6 +33,8 @@ import { useWalletData } from "@/hooks/useWalletData";
 import EmptyDataModel from "@/Components/UI/EmptyDataModel";
 import { WalletAction } from "@/Redux/Actions";
 import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
+import { useSelector } from "react-redux";
+import { rootReducer } from "@/utils/types";
 
 interface WalletData {
   icon: any;
@@ -45,6 +47,7 @@ interface WalletData {
 const Wallet = () => {
   const isMobile = useIsMobile("md");
   const dispatch = useDispatch();
+  const companyState = useSelector((state: rootReducer) => state.companyReducer);
   const { t } = useTranslation("walletScreen");
   const tWallet = useCallback(
     (key: string): string => {
@@ -60,8 +63,8 @@ const Wallet = () => {
 
   // Callback to refresh wallet list after adding a wallet
   const handleWalletAdded = useCallback(() => {
-    dispatch(WalletAction(WALLET_FETCH));
-  }, [dispatch]);
+    dispatch(WalletAction(WALLET_FETCH, { company_id: companyState.selectedCompanyId }));
+  }, [dispatch, companyState.selectedCompanyId]);
   // const walletData = useMemo<WalletData[]>(
   //   () => [
   //     {

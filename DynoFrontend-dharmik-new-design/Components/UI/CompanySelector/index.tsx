@@ -18,15 +18,18 @@ import { VerticalLine } from "../LanguageSwitcher/styled";
 import { useTranslation } from "react-i18next";
 import { Add } from "@mui/icons-material";
 import CustomButton from "../Buttons";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { rootReducer } from "@/utils/types";
 import { useCompanyDialog } from "@/Components/UI/CompanyDialog/context";
 import useIsMobile from "@/hooks/useIsMobile";
+import { CompanyAction } from "@/Redux/Actions/CompanyAction";
+import { COMPANY_SELECT } from "@/Redux/Actions/CompanyAction";
 
 export default function CompanySelector() {
   const { t } = useTranslation("dashboardLayout");
   const theme = useTheme();
   const isMobile = useIsMobile("md");
+  const dispatch = useDispatch();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const { openAddCompany, openEditCompany } = useCompanyDialog();
   const companyState = useSelector(
@@ -37,14 +40,25 @@ export default function CompanySelector() {
     () => companyState.companyList ?? [],
     [companyState.companyList]
   );
-  const [active, setActive] = useState<number | null>(null);
+  
+  // Use Redux selectedCompanyId, fallback to local state for initial load
+  const active = companyState.selectedCompanyId ?? null;
 
   useEffect(() => {
-    if (active == null && companies.length > 0)
-      setActive(companies[0].company_id);
-  }, [active, companies]);
+    // Set first company as selected if none is selected
+    if (active == null && companies.length > 0 && companyState.selectedCompanyId === null) {
+      dispatch({ type: COMPANY_SELECT, payload: companies[0].company_id });
+    }
+  }, [active, companies, dispatch, companyState.selectedCompanyId]);
 
   const selected = companies.find((c) => c.company_id === active);
+  
+  const handleCompanySelect = (companyId: number) => {
+    // Only dispatch if selecting a different company
+    if (companyState.selectedCompanyId !== companyId) {
+      dispatch({ type: COMPANY_SELECT, payload: companyId });
+    }
+  };
 
   const handleOpen = (e: any) => setAnchorEl(e.currentTarget);
   const handleClose = () => setAnchorEl(null);
@@ -112,7 +126,7 @@ export default function CompanySelector() {
             <CompanyItem
               key={c.company_id}
               active={active === c.company_id}
-              onClick={() => setActive(c.company_id)}
+              onClick={() => handleCompanySelect(c.company_id)}
             >
               <ItemLeft>
                 <Box className="info">

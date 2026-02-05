@@ -7,11 +7,13 @@ import {
   COMPANY_INIT,
   COMPANY_INSERT,
   COMPANY_UPDATE,
+  COMPANY_SELECT,
 } from "../Actions/CompanyAction";
 
 const companyInitialState: ICompanyReducer = {
   companyList: [],
   loading: false,
+  selectedCompanyId: null,
 };
 
 const companyReducer = (state = companyInitialState, action: ReducerAction) => {
@@ -66,6 +68,18 @@ const companyReducer = (state = companyInitialState, action: ReducerAction) => {
         ...state,
         loading: false,
         companyList: payload,
+        // Set first company as selected if none is selected, but don't override if already set
+        selectedCompanyId: state.selectedCompanyId ?? (payload && payload.length > 0 ? payload[0].company_id : null),
+      };
+
+    case COMPANY_SELECT:
+      // Only update if the company ID is actually different
+      if (state.selectedCompanyId === payload) {
+        return state; // Return same state to prevent unnecessary re-renders
+      }
+      return {
+        ...state,
+        selectedCompanyId: payload,
       };
 
     case COMPANY_DELETE:

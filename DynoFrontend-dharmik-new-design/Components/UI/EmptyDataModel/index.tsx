@@ -11,9 +11,10 @@ import { AddRounded } from "@mui/icons-material";
 import { useRouter } from "next/router";
 import AddWalletModal from "../AddWalletModal";
 import CreateApiModel from "../ApiKeysModel/CreateApiModel";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { WalletAction } from "@/Redux/Actions";
 import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
+import { rootReducer } from "@/utils/types";
 
 type PageName = "transactions" | "wallet" | "apiKey";
 
@@ -25,14 +26,15 @@ const EmptyDataModel = ({ pageName }: EmptyDataModelProps) => {
     const isMobile = useIsMobile("md");
     const router = useRouter();
     const dispatch = useDispatch();
+    const companyState = useSelector((state: rootReducer) => state.companyReducer);
     const { t } = useTranslation("common");
 
     const [openCreate, setOpenCreate] = useState(false);
 
     // Callback to refresh wallet list after adding a wallet
     const handleWalletAdded = useCallback(() => {
-        dispatch(WalletAction(WALLET_FETCH));
-    }, [dispatch]);
+        dispatch(WalletAction(WALLET_FETCH, { company_id: companyState.selectedCompanyId }));
+    }, [dispatch, companyState.selectedCompanyId]);
 
     const pageData: Record<
         PageName,
@@ -142,7 +144,11 @@ const EmptyDataModel = ({ pageName }: EmptyDataModelProps) => {
                     variant="primary"
                     size="medium"
                     endIcon={<AddRounded sx={{ fontSize: isMobile ? 18 : 20 }} />}
-                    onClick={handleButtonClick}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleButtonClick();
+                    }}
                     sx={{
                         height: isMobile ? 34 : 40,
                         px: isMobile ? 1.5 : 2.5,
@@ -152,9 +158,9 @@ const EmptyDataModel = ({ pageName }: EmptyDataModelProps) => {
                 />
             </Box>
 
-            {pageName === "wallet" && openCreate && (
+            {pageName === "wallet" && (
                 <AddWalletModal
-                    open
+                    open={openCreate}
                     onClose={() => setOpenCreate(false)}
                     onWalletAdded={handleWalletAdded}
                 />

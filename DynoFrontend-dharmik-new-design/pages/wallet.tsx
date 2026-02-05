@@ -19,9 +19,10 @@ import { WarningIconContainer } from "@/Components/UI/AddWalletModal/styled";
 import Image from "next/image";
 import InfoIcon from "@/assets/Icons/info-icon.svg";
 import { useWalletData } from "@/hooks/useWalletData";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { WalletAction } from "@/Redux/Actions";
 import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
+import { rootReducer } from "@/utils/types";
 
 const WalletPage = ({
   setPageName,
@@ -32,6 +33,7 @@ const WalletPage = ({
 }: pageProps) => {
   const router = useRouter();
   const dispatch = useDispatch();
+  const companyState = useSelector((state: rootReducer) => state.companyReducer);
   const namespaces = ["walletScreen", "common"];
   const isMobile = useIsMobile("md");
   const { t } = useTranslation(namespaces);
@@ -47,8 +49,8 @@ const WalletPage = ({
 
   // Callback to refresh wallet list after adding a wallet
   const handleWalletAdded = useCallback(() => {
-    dispatch(WalletAction(WALLET_FETCH));
-  }, [dispatch]);
+    dispatch(WalletAction(WALLET_FETCH, { company_id: companyState.selectedCompanyId }));
+  }, [dispatch, companyState.selectedCompanyId]);
 
   useEffect(() => {
     if (setPageName && setPageDescription) {

@@ -1,5 +1,5 @@
 import { rootReducer } from "@/utils/types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { WalletAction } from "@/Redux/Actions";
 import { WALLET_FETCH } from "@/Redux/Actions/WalletAction";
@@ -96,21 +96,67 @@ export const ALLCRYPTOCURRENCIES: readonly Cryptocurrency[] = [
 
 /* ------------------------------- Main Hook -------------------------------- */
 
+// Shared refs outside the hook to prevent multiple instances from fetching simultaneously
+const globalLastFetchedCompanyIdRef = { current: null as number | null };
+const globalIsFetchingRef = { current: false };
+
 export const useWalletData = () => {
   const dispatch = useDispatch();
   const walletState = useSelector((state: rootReducer) => state.walletReducer);
+  const companyState = useSelector((state: rootReducer) => state.companyReducer);
   const walletLoading = Boolean(walletState?.loading);
   const [walletWarning, setWalletWarning] = useState(false);
+  
+  // Use a stable reference to the selected company ID
+  const selectedCompanyId = companyState.selectedCompanyId;
+  const prevCompanyIdRef = useRef<number | null>(null);
 
+  // Fetch wallets when company is selected or switched
   useEffect(() => {
-    if (
-      !walletState?.loading &&
-      (!Array.isArray(walletState?.walletList) ||
-        walletState.walletList.length === 0)
-    ) {
-      dispatch(WalletAction(WALLET_FETCH));
+    const currentCompanyId = selectedCompanyId;
+    
+    // Skip if company ID hasn't actually changed
+    if (prevCompanyIdRef.current === currentCompanyId) {
+      return;
     }
-  }, [dispatch]);
+    
+    // Update the previous company ID ref
+    prevCompanyIdRef.current = currentCompanyId;
+    
+    // Skip if no company selected
+    if (!currentCompanyId) {
+      globalLastFetchedCompanyIdRef.current = null;
+      globalIsFetchingRef.current = false;
+      return;
+    }
+    
+    // Skip if this is the same company we already fetched (using global ref)
+    if (globalLastFetchedCompanyIdRef.current === currentCompanyId) {
+      // Reset fetching flag if loading is complete
+      if (!walletLoading) {
+        globalIsFetchingRef.current = false;
+      }
+      return;
+    }
+    
+    // Skip if currently loading or already fetching (using global ref)
+    if (walletLoading || globalIsFetchingRef.current) {
+      return;
+    }
+    
+    // Mark that we're fetching for this company BEFORE dispatching (using global ref)
+    globalIsFetchingRef.current = true;
+    globalLastFetchedCompanyIdRef.current = currentCompanyId;
+    dispatch(WalletAction(WALLET_FETCH, { company_id: currentCompanyId }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompanyId]); // Only depend on company ID - walletLoading is checked inside but not in deps
+  
+  // Reset fetching flag when loading completes
+  useEffect(() => {
+    if (!walletLoading) {
+      globalIsFetchingRef.current = false;
+    }
+  }, [walletLoading]);
 
   /* ---------------------------- Wallet Data ---------------------------- */
 
